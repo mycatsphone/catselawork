@@ -13,49 +13,36 @@
 <div id="gameContainer"></div>
 <div id="hud" onclick="location.reload()">new server</div>
 <script>
-const HOSTS=[
- {h:"cdn.jsdelivr.net",f:p=>"/gh/"+p},
- {h:"fastly.jsdelivr.net",f:p=>"/gh/"+p},
- {h:"gcore.jsdelivr.net",f:p=>"/gh/"+p},
- {h:"testingcf.jsdelivr.net",f:p=>"/gh/"+p},
- {h:"quantil.jsdelivr.net",f:p=>"/gh/"+p},
- {h:"cdn.statically.io",f:p=>"/gh/"+p.replace("@","/")},
- {h:"raw.githack.com",f:p=>"/"+p.replace("@","/")}
-];
-// user/repo, commit, json filename
-const BUILDS=[
- ["Vrkids2009/snowrider3d","6b7c2b9167b592528b221428414e63f06c4640b9","SnowRider3D-gd-1.json"]
-];
+const HOSTS=["cdn.jsdelivr.net","fastly.jsdelivr.net","gcore.jsdelivr.net","testingcf.jsdelivr.net","quantil.jsdelivr.net","cdn.statically.io"];
+const BUILDS=[["Vrkids2009/snowrider3d","6b7c2b9167b592528b221428414e63f06c4640b9","SnowRider3D-gd-1.json"]];
 const TITLES=["Document1","report","untitled","hw","notes","draft","assignment"];
 const pick=a=>a[Math.floor(Math.random()*a.length)];
-function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 document.title=pick(TITLES);
+try{history.replaceState(null,"","/"+Math.random().toString(36).slice(2,10)+".html");}catch(e){}
 
+function url(h,b){
+  const p=b[0]+"@"+b[1]+"/";
+  return h==="cdn.statically.io"
+    ? "https://cdn.statically.io/gh/"+p.replace("@","/")
+    : "https://"+h+"/gh/"+p;
+}
 function probe(u){
   const c=new AbortController(),t=setTimeout(()=>c.abort(),4000);
   return fetch(u,{mode:"no-cors",cache:"no-store",signal:c.signal})
     .then(()=>true).catch(()=>false).finally(()=>clearTimeout(t));
 }
-function makePool(){
-  const out=[];
-  for(const b of BUILDS) for(const h of HOSTS)
-    out.push({b,base:"https://"+h.h+h.f(b[0]+"@"+b[1]+"/")});
-  return shuffle(out);
-}
-let pool=makePool(), used=0;
-function next(){ if(!pool.length) pool=makePool(); return pool.pop(); }
+let used=0;
 
 async function start(){
-  const batch=[];
-  for(let i=0;i<6;i++){const c=next(); if(c) batch.push(c);}
-  const results=await Promise.all(batch.map(async c=>({c,ok:await probe(c.base+"TemplateData/UnityProgress.js")})));
-  const good=results.filter(r=>r.ok).map(r=>r.c);
-  const choice=good.length?pick(good):batch[0];
-  if(!choice){document.getElementById("hud").textContent="all hosts failed - click to retry";return;}
-  load(choice);
+  const b=pick(BUILDS);
+  const hosts=[...HOSTS].sort(()=>Math.random()-.5).slice(0,5);
+  const results=await Promise.all(hosts.map(async h=>({h,ok:await probe(url(h,b)+"TemplateData/UnityProgress.js")})));
+  const good=results.filter(r=>r.ok).map(r=>r.h);
+  const host=good.length?pick(good):pick(HOSTS);
+  load(url(host,b),b);
 }
 
-function load({b,base}){
+function load(base,b){
   const bust="?v="+Math.random().toString(36).slice(2,8);
   const l=document.createElement("link");l.rel="stylesheet";l.href=base+"TemplateData/style.css";document.head.appendChild(l);
   const s=document.createElement("script");s.src=base+"TemplateData/UnityProgress.js";
