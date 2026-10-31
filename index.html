@@ -4,63 +4,101 @@
 <meta charset="utf-8">
 <meta name="referrer" content="no-referrer">
 <title>Document1</title>
-<style>html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:system-ui,sans-serif}
+<style>
+html,body{margin:0;height:100%;background:#0b0b0f;overflow:hidden;font-family:system-ui,sans-serif}
 #gameContainer{width:100%;height:100%}
-#hud{position:fixed;bottom:6px;right:6px;font-size:11px;color:#777;background:#000a;padding:4px 8px;border-radius:6px;z-index:9;cursor:pointer}
+#bar{position:fixed;bottom:6px;left:6px;z-index:9;display:flex;gap:6px;font-size:11px}
+#bar div{color:#777;background:#000a;padding:4px 8px;border-radius:6px;cursor:pointer;user-select:none}
+#hud{position:fixed;bottom:6px;right:6px;font-size:11px;color:#777;background:#000a;padding:4px 8px;border-radius:6px;z-index:9;cursor:pointer;user-select:none}
 </style>
 </head>
 <body>
 <div id="gameContainer"></div>
-<div id="hud" onclick="location.reload()">new server</div>
+<div id="bar"><div id="new">new address</div><div id="copy">copy</div></div>
+<div id="hud">starting</div>
 <script>
-const HOSTS=["cdn.jsdelivr.net","fastly.jsdelivr.net","gcore.jsdelivr.net","testingcf.jsdelivr.net","quantil.jsdelivr.net","cdn.statically.io"];
-const BUILDS=[["Vrkids2009/snowrider3d","6b7c2b9167b592528b221428414e63f06c4640b9","SnowRider3D-gd-1.json"]];
-const TITLES=["Document1","report","untitled","hw","notes","draft","assignment"];
+const DOMAIN="unstab1epvp.org";
+const CDNS=[
+  p=>"https://cdn.jsdelivr.net/gh/"+p,
+  p=>"https://fastly.jsdelivr.net/gh/"+p,
+  p=>"https://gcore.jsdelivr.net/gh/"+p,
+  p=>"https://testingcf.jsdelivr.net/gh/"+p,
+  p=>"https://quantil.jsdelivr.net/gh/"+p,
+  p=>"https://cdn.jsdmirror.com/gh/"+p,
+  p=>"https://cdn.statically.io/gh/"+p.replace("@","/")
+];
+const BUILDS=[
+  ["Vrkids2009/snowrider3d","6b7c2b9167b592528b221428414e63f06c4640b9","SnowRider3D-gd-1.json"]
+];
+const TITLES=["Document1","report","untitled","hw","notes","draft","assignment","Untitled document","essay"];
 const pick=a=>a[Math.floor(Math.random()*a.length)];
-document.title=pick(TITLES);
-try{history.replaceState(null,"","/"+Math.random().toString(36).slice(2,10)+".html");}catch(e){}
+const rnd=n=>Math.random().toString(36).slice(2,2+n);
+const hud=document.getElementById("hud");
+let tries=0,done=false;
 
-function url(h,b){
-  const p=b[0]+"@"+b[1]+"/";
-  return h==="cdn.statically.io"
-    ? "https://cdn.statically.io/gh/"+p.replace("@","/")
-    : "https://"+h+"/gh/"+p;
+// random front door
+function newAddr(){
+  location.href="https://"+rnd(7)+"."+DOMAIN+"/";
 }
+document.getElementById("new").onclick=newAddr;
+document.getElementById("copy").onclick=()=>{
+  navigator.clipboard.writeText(location.href).then(()=>{
+    document.getElementById("copy").textContent="copied";
+    setTimeout(()=>document.getElementById("copy").textContent="copy",1200);
+  });
+};
+
+document.title=pick(TITLES)+" "+rnd(3);
+if(location.hostname.endsWith(DOMAIN)){
+  try{history.replaceState(null,"","/"+rnd(4)+"/"+rnd(5)+".html");}catch(e){}
+}
+
 function probe(u){
-  const c=new AbortController(),t=setTimeout(()=>c.abort(),4000);
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),3500);
   return fetch(u,{mode:"no-cors",cache:"no-store",signal:c.signal})
     .then(()=>true).catch(()=>false).finally(()=>clearTimeout(t));
 }
-let used=0;
 
-async function start(){
+async function attempt(){
+  if(done)return;
+  if(tries++>=8){hud.textContent="blocked - click to retry";return;}
   const b=pick(BUILDS);
-  const hosts=[...HOSTS].sort(()=>Math.random()-.5).slice(0,5);
-  const results=await Promise.all(hosts.map(async h=>({h,ok:await probe(url(h,b)+"TemplateData/UnityProgress.js")})));
-  const good=results.filter(r=>r.ok).map(r=>r.h);
-  const host=good.length?pick(good):pick(HOSTS);
-  load(url(host,b),b);
+  const order=CDNS.slice().sort(()=>Math.random()-.5);
+  const cands=order.slice(0,4).map(f=>f(b[0]+"@"+b[1]+"/"));
+  const oks=await Promise.all(cands.map(u=>probe(u+"TemplateData/UnityProgress.js")));
+  let base=cands[oks.indexOf(true)];
+  if(!base)base=order[0](b[0]+"@"+b[1]+"/");
+  mount(base,b);
 }
 
-function load(base,b){
-  const bust="?v="+Math.random().toString(36).slice(2,8);
-  const l=document.createElement("link");l.rel="stylesheet";l.href=base+"TemplateData/style.css";document.head.appendChild(l);
-  const s=document.createElement("script");s.src=base+"TemplateData/UnityProgress.js";
-  s.onerror=()=>{used++;if(used<6)start();else document.getElementById("hud").textContent="blocked - click to retry";};
+function mount(base,b){
+  const bust="?v="+rnd(6);
+  hud.textContent=base.split("/")[2];
+  const l=document.createElement("link");
+  l.rel="stylesheet";l.href=base+"TemplateData/style.css";document.head.appendChild(l);
+  const s=document.createElement("script");
+  s.src=base+"TemplateData/UnityProgress.js";
+  let wd=setTimeout(()=>{if(!done){s.remove();attempt();}},8000);
+  s.onerror=()=>{clearTimeout(wd);attempt();};
   s.onload=()=>{
-    const s2=document.createElement("script");s2.src=base+"Build/UnityLoader.js";
-    s2.onerror=()=>{used++;if(used<6)start();};
+    clearTimeout(wd);
+    const s2=document.createElement("script");
+    s2.src=base+"Build/UnityLoader.js";
+    s2.onerror=()=>attempt();
     s2.onload=()=>{
-      window.gameInstance=UnityLoader.instantiate("gameContainer",base+"Build/"+b[2]+bust,{
-        onProgress:UnityProgress,
-        Module:{onRuntimeInitialized:function(){UnityProgress(gameInstance,"complete");}}
-      });
+      try{
+        window.gameInstance=UnityLoader.instantiate("gameContainer",base+"Build/"+b[2]+bust,{
+          onProgress:UnityProgress,
+          Module:{onRuntimeInitialized:function(){done=true;hud.textContent="";UnityProgress(gameInstance,"complete");}}
+        });
+      }catch(e){attempt();}
     };
     document.head.appendChild(s2);
   };
   document.head.appendChild(s);
 }
-start();
+hud.onclick=()=>location.reload();
+attempt();
 </script>
 </body>
 </html>
